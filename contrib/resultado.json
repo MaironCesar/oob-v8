@@ -1,0 +1,69 @@
+{
+  "method": "composicao_de_permutacoes_por_blocos",
+  "max_pin": 9999,
+  "results": [
+    {
+      "time": "04/08/2023 13:37",
+      "timezone": "Europe/Zurich",
+      "ciphertext": "fmMf7mIMbHcPoQmLGx1CO0XVGBmhjTaYhB0",
+      "tokens_checked": 60,
+      "pin_candidates_checked": 599940,
+      "block_periods": [
+        16
+      ],
+      "elapsed_seconds": 4.014494,
+      "candidates": [
+        {
+          "second": 27,
+          "token": "I6X6vyQzRuH",
+          "pin": 8126,
+          "plaintext": "CTF{Ok4y_h4v3_u_0ptim1zed_",
+          "reencryption_verified": true
+        }
+      ]
+    },
+    {
+      "time": "07/09/2024 18:52",
+      "timezone": "Europe/Zurich",
+      "ciphertext": "5O6WRgCajs3QSTyohnu2hldds18mjkx",
+      "tokens_checked": 60,
+      "pin_candidates_checked": 599940,
+      "block_periods": [
+        16
+      ],
+      "elapsed_seconds": 2.783671,
+      "candidates": [
+        {
+          "second": 31,
+          "token": "BMiZFI8Xr3Q",
+          "pin": 5178,
+          "plaintext": "brUt3_f0rcE_0R_y0u_jUst",
+          "reencryption_verified": true
+        }
+      ]
+    },
+    {
+      "time": "03/03/2025 22:07",
+      "timezone": "Europe/Zurich",
+      "ciphertext": "fgv99dOvazsvEESh7DPKbb3k0I3RW",
+      "tokens_checked": 60,
+      "pin_candidates_checked": 599940,
+      "block_periods": [
+        16,
+        112
+      ],
+      "elapsed_seconds": 2.74924,
+      "candidates": [
+        {
+          "second": 48,
+          "token": "KZ95PpF1RFq",
+          "pin": 7490,
+          "plaintext": "_uSeD_a_l0t_0f_c0Res?}",
+          "reencryption_verified": true
+        }
+      ]
+    }
+  ],
+  "flag": "CTF{Ok4y_h4v3_u_0ptim1zed_brUt3_f0rcE_0R_y0u_jUst_uSeD_a_l0t_0f_c0Res?}",
+  "total_seconds": 9.548072
+}
