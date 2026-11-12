@@ -41,6 +41,20 @@ O desafio introduziu manualmente uma vulnerabilidade que permite escrever uma po
 +}
 ```
 
+### Contribuição própria: modelo de comprimento e capacidade
+
+O código do desafio usa `length` como índice em `elements.get_scalar(length)` e `elements.set(length, ...)`. Minha contribuição é o [modelo de capacidade](./contribuicao/modelo_capacidade.js), que separa duas condições frequentemente tratadas como se fossem a mesma: o acesso fora do comprimento lógico do array e o acesso fora da capacidade do armazenamento `FixedDoubleArray`.
+
+Para um comprimento `L` e uma capacidade `C`, com `C >= L`, o índice usado é `i = L`. Portanto, `i >= L` é sempre verdadeiro. Se `C = L`, então `i >= C` e o acesso cruza o limite físico do armazenamento. Se `C > L`, o mesmo índice ainda cabe na capacidade excedente, embora esteja fora do comprimento lógico. A tabela produzida pelo programa torna essa diferença visível:
+
+```text
+Comprimento | Capacidade | Índice acessado | Resultado
+3           | 3          | 3              | fora do armazenamento
+3           | 8          | 3              | dentro da capacidade excedente
+```
+
+Execute `node contribuicao/modelo_capacidade.js` para reproduzir a tabela e `node --test contribuicao/modelo_capacidade.test.js` para verificar os casos de fronteira. O modelo é didático: ele classifica índices e não executa o V8 nem afirma qual capacidade ou posição de objetos uma execução real terá. Para confirmar a adjacência ao campo `Map`, é preciso inspecionar a memória do binário do desafio, como na seção seguinte.
+
 ### Disposição da memória
 
 Ao executar um programa JavaScript simples e inspecionar a memória, observamos que o objeto `JSArray` fica logo após os elementos do array. A escrita fora dos limites permite sobrescrever o campo `Map` desse objeto.
