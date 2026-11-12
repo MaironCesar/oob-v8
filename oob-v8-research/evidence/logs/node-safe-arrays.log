@@ -1,0 +1,27 @@
+PASS smi: length stable
+PASS smi: first invalid
+PASS smi: negative index
+PASS smi: last valid
+PASS smi: length after reads
+PASS double: length stable
+PASS double: first invalid
+PASS double: negative index
+PASS double: last valid
+PASS double: length after reads
+PASS object: length stable
+PASS object: first invalid
+PASS object: negative index
+PASS object: last valid
+PASS object retained
+PASS object: length after reads
+PASS empty: length stable
+PASS empty: first invalid
+PASS empty: negative index
+PASS empty: length after reads
+PASS holey: length stable
+PASS holey: first invalid
+PASS holey: negative index
+PASS holey: last valid
+PASS hole retained
+PASS holey: length after reads
+RESULT PASS

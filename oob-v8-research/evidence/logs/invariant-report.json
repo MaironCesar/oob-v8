@@ -1,0 +1,372 @@
+{
+  "schema": 1,
+  "method": "static textual checks; not a proof of control flow or memory safety",
+  "version": "7.5.0.0",
+  "commit": "6dc88c191f5ecc5389dc26efa3ca0907faef3598",
+  "architecture": "x86_64",
+  "inputs_sha256": {
+    "diff": "b29046b42bde311b50bedff2d12a4845a2a86a2ab4df86593e39b48bf4b76bb0",
+    "build_script": "2159a9cc1bba07a775aef7a67ef17a046197421dc9ea557130ad107bdb5506d8",
+    "binary": "88ab60df6f3b7b80e62ebdb77673d685d2656ac3c7cc1e268a96889d9f0ad3db",
+    "corrected": "c63787347518b097ccb51960f73b0f4d9c06a2bbafad0333353c98d8c2cdaa04",
+    "alternative": "67bc592dd45d11bb1723afd067e6f8f94b1aeb8195b22d6a93cea72b77ada144",
+    "version_header": "5006c3ad4225f27f0b0a617a56956605b651c1685a3f8af7bc3b427fc8a6e485",
+    "src/objects/js-array.h": "922f5534ee8ce7bf810fed142d7ce73114c7eaddef0c3fdc797986f88d125950",
+    "src/objects/fixed-array.h": "50072467deba2d47992ebb43ff4b058dde7e19c3539d3b36dc2572f5fe7ecb54",
+    "src/objects/fixed-array-inl.h": "ce75d123ebdf4dd403873dcc0e1908983d3e70210a8d8f84814a52ab5c203414",
+    "src/objects/heap-object.h": "54e9b91c849666df02c5d104a7f756e9f8a2aeeb2ff84b4ded4979f0192eaa36",
+    "src/objects/map.h": "d3be7ad89993d2230576a095d7635e7e1b8c9835e24c7900206b64a52216a294",
+    "src/elements-kind.h": "7d771985729feddbdd379ebbf0b16041053bee82dfc0500b8273f2713c0b7bdc",
+    "src/objects/js-objects.h": "a2ae0406d73b91ee1275ee617e66eb6ca71321c0432ddcd17e4ae6883163e671"
+  },
+  "cases": {
+    "original_vulnerable": {
+      "boundary": {
+        "property": "index < backing length",
+        "source": "evidence/origins/oob.diff",
+        "method": "busca textual de guarda anterior a cada get_scalar/set",
+        "expected": "guarda antes de cada acesso",
+        "observed": "ausente",
+        "evidence": [
+          "12: return *(isolate->factory()->NewNumber(elements.get_scalar(length)));",
+          "18: elements.set(length,value->Number());"
+        ],
+        "status": "FAIL",
+        "conclusion": "Invariante não demonstrado no fluxo analisado"
+      },
+      "logical_boundary": {
+        "property": "index < JSArray.length",
+        "source": "evidence/origins/oob.diff",
+        "method": "busca textual de guarda lógica anterior a cada acesso",
+        "expected": "índice abaixo do comprimento lógico",
+        "observed": "ausente",
+        "evidence": [
+          "12: return *(isolate->factory()->NewNumber(elements.get_scalar(length)));",
+          "18: elements.set(length,value->Number());"
+        ],
+        "status": "FAIL",
+        "conclusion": "Invariante não demonstrado no fluxo analisado"
+      },
+      "receiver": {
+        "property": "receiver é JSArray",
+        "source": "evidence/origins/oob.diff",
+        "method": "guarda antes do cast",
+        "expected": "verificação de tipo antes do cast",
+        "observed": "ausente",
+        "evidence": [
+          "7: Handle<JSArray> array = Handle<JSArray>::cast(receiver);"
+        ],
+        "status": "FAIL",
+        "conclusion": "Invariante não demonstrado no fluxo analisado"
+      },
+      "elements_kind": {
+        "property": "backing store é FixedDoubleArray",
+        "source": "evidence/origins/oob.diff",
+        "method": "guarda antes do cast",
+        "expected": "Elements Kind double antes do cast",
+        "observed": "ausente",
+        "evidence": [
+          "8: FixedDoubleArray elements = FixedDoubleArray::cast(array->elements());"
+        ],
+        "status": "FAIL",
+        "conclusion": "Invariante não demonstrado no fluxo analisado"
+      }
+    },
+    "corrected_proposal": {
+      "boundary": {
+        "property": "index < backing length",
+        "source": "source-analysis/corrected_proposal.cc",
+        "method": "busca textual de guarda anterior a cada get_scalar/set",
+        "expected": "guarda antes de cada acesso",
+        "observed": "presente",
+        "evidence": [
+          "11: if (read) return elements.get_scalar(length);",
+          "12: else elements.set(length, value->Number());"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      },
+      "logical_boundary": {
+        "property": "index < JSArray.length",
+        "source": "source-analysis/corrected_proposal.cc",
+        "method": "busca textual de guarda lógica anterior a cada acesso",
+        "expected": "índice abaixo do comprimento lógico",
+        "observed": "presente",
+        "evidence": [
+          "11: if (read) return elements.get_scalar(length);",
+          "12: else elements.set(length, value->Number());"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      },
+      "receiver": {
+        "property": "receiver é JSArray",
+        "source": "source-analysis/corrected_proposal.cc",
+        "method": "guarda antes do cast",
+        "expected": "verificação de tipo antes do cast",
+        "observed": "guarda em linha 3",
+        "evidence": [
+          "4: Handle<JSArray> array = Handle<JSArray>::cast(receiver);"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      },
+      "elements_kind": {
+        "property": "backing store é FixedDoubleArray",
+        "source": "source-analysis/corrected_proposal.cc",
+        "method": "guarda antes do cast",
+        "expected": "Elements Kind double antes do cast",
+        "observed": "guarda em linha 5",
+        "evidence": [
+          "6: FixedDoubleArray elements = FixedDoubleArray::cast(array->elements());"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      }
+    },
+    "alternative_proposal": {
+      "boundary": {
+        "property": "index < backing length",
+        "source": "source-analysis/alternative_proposal.cc",
+        "method": "busca textual de guarda anterior a cada get_scalar/set",
+        "expected": "guarda antes de cada acesso",
+        "observed": "presente",
+        "evidence": [
+          "10: if (read) return elements.get_scalar(index);",
+          "11: else elements.set(index, value->Number());"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      },
+      "logical_boundary": {
+        "property": "index < JSArray.length",
+        "source": "source-analysis/alternative_proposal.cc",
+        "method": "busca textual de guarda lógica anterior a cada acesso",
+        "expected": "índice abaixo do comprimento lógico",
+        "observed": "presente",
+        "evidence": [
+          "10: if (read) return elements.get_scalar(index);",
+          "11: else elements.set(index, value->Number());"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      },
+      "receiver": {
+        "property": "receiver é JSArray",
+        "source": "source-analysis/alternative_proposal.cc",
+        "method": "guarda antes do cast",
+        "expected": "verificação de tipo antes do cast",
+        "observed": "guarda em linha 3",
+        "evidence": [
+          "4: Handle<JSArray> array = Handle<JSArray>::cast(receiver);"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      },
+      "elements_kind": {
+        "property": "backing store é FixedDoubleArray",
+        "source": "source-analysis/alternative_proposal.cc",
+        "method": "guarda antes do cast",
+        "expected": "Elements Kind double antes do cast",
+        "observed": "guarda em linha 5",
+        "evidence": [
+          "6: FixedDoubleArray elements = FixedDoubleArray::cast(array->elements());"
+        ],
+        "status": "PASS_STATIC",
+        "conclusion": "Guarda observada estaticamente; runtime não verificado"
+      }
+    }
+  },
+  "source_findings": [
+    {
+      "property": "JSArray length <= backing length",
+      "source": "evidence/origins/v8/src/objects/js-array.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "invariante documentado para modo rápido",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "21: //    - fast, backing storage is a FixedArray and length <= elements.length();"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "JSArray length",
+      "source": "evidence/origins/v8/src/objects/js-array.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "length separado do armazenamento",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "27: DECL_ACCESSORS(length, Object)"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "FixedArrayBase storage length",
+      "source": "evidence/origins/v8/src/objects/fixed-array.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "backing store com comprimento próprio",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "72: class FixedArrayBase : public HeapObject {"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "FixedDoubleArray double slots",
+      "source": "evidence/origins/v8/src/objects/fixed-array.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "tamanho em slots double",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "243: return kHeaderSize + length * kDoubleSize;"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "FixedDoubleArray debug assertion",
+      "source": "evidence/origins/v8/src/objects/fixed-array-inl.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "DCHECK de limite na leitura",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "96: DCHECK(index >= 0 && index < this->length());",
+        "321: DCHECK(index >= 0 && index < this->length());",
+        "329: DCHECK(index >= 0 && index < this->length());"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "FixedDoubleArray write path",
+      "source": "evidence/origins/v8/src/objects/fixed-array-inl.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "setter separado da validação do chamador",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "343: void FixedDoubleArray::set(int index, double value) {"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "Map field",
+      "source": "evidence/origins/v8/src/objects/heap-object.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "ponteiro Map no cabeçalho",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "180: V(kMapOffset, kTaggedSize)  \\"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "Map ElementsKind bits",
+      "source": "evidence/origins/v8/src/objects/map.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "ElementsKind codificado em Map",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "270: V(ElementsKindBits, ElementsKind, 5, _)"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "double ElementsKind",
+      "source": "evidence/origins/v8/src/elements-kind.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "ElementsKind double declarado",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "41: PACKED_DOUBLE_ELEMENTS,",
+        "75: SYSTEM_POINTER_ELEMENTS = PACKED_DOUBLE_ELEMENTS,"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    },
+    {
+      "property": "JSObject elements field",
+      "source": "evidence/origins/v8/src/objects/js-objects.h",
+      "method": "regex no código-fonte versionado",
+      "expected": "ponteiro para armazenamento de elementos",
+      "observed": "declaração encontrada",
+      "evidence": [
+        "769: V(kElementsOffset, kTaggedSize) \\"
+      ],
+      "status": "PASS_STATIC",
+      "conclusion": "Declaração encontrada no commit; sem inferência de segurança dinâmica"
+    }
+  ],
+  "changed_paths": [
+    "src/bootstrapper.cc",
+    "src/builtins/builtins-array.cc",
+    "src/builtins/builtins-definitions.h",
+    "src/compiler/typer.cc"
+  ],
+  "metadata_findings": [
+    {
+      "property": "V8 version",
+      "source": "evidence/origins/v8-version.h",
+      "method": "parse V8_* macros",
+      "expected": "four numeric components",
+      "observed": "7.5.0.0",
+      "evidence": [
+        "V8_MAJOR_VERSION",
+        "V8_MINOR_VERSION",
+        "V8_BUILD_NUMBER",
+        "V8_PATCH_LEVEL"
+      ],
+      "status": "OBSERVED",
+      "conclusion": "Identificação atribuída à fonte indicada"
+    },
+    {
+      "property": "V8 base commit",
+      "source": "evidence/origins/build.sh",
+      "method": "parse V8_BASE_COMMIT",
+      "expected": "40 hex characters",
+      "observed": "6dc88c191f5ecc5389dc26efa3ca0907faef3598",
+      "evidence": [
+        "V8_BASE_COMMIT"
+      ],
+      "status": "OBSERVED",
+      "conclusion": "Identificação atribuída à fonte indicada"
+    },
+    {
+      "property": "binary architecture",
+      "source": "evidence/origins/d8",
+      "method": "parse ELF e_machine",
+      "expected": "known architecture or ELF machine",
+      "observed": "x86_64",
+      "evidence": [
+        "ELF header bytes 0..19"
+      ],
+      "status": "OBSERVED",
+      "conclusion": "Identificação atribuída à fonte indicada"
+    },
+    {
+      "property": "modified source paths",
+      "source": "evidence/origins/oob.diff",
+      "method": "parse diff --git headers",
+      "expected": "list of changed paths",
+      "observed": [
+        "src/bootstrapper.cc",
+        "src/builtins/builtins-array.cc",
+        "src/builtins/builtins-definitions.h",
+        "src/compiler/typer.cc"
+      ],
+      "evidence": [
+        "src/bootstrapper.cc",
+        "src/builtins/builtins-array.cc",
+        "src/builtins/builtins-definitions.h",
+        "src/compiler/typer.cc"
+      ],
+      "status": "OBSERVED",
+      "conclusion": "Identificação atribuída à fonte indicada"
+    }
+  ]
+}

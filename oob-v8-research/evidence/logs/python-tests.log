@@ -1,0 +1,13 @@
+test_alternative_index_checks_both_limits (test_analyzer.AnalyzerTests.test_alternative_index_checks_both_limits) ... ok
+test_boundary_and_type_checks (test_analyzer.AnalyzerTests.test_boundary_and_type_checks) ... ok
+test_unknown_is_not_pass (test_analyzer.AnalyzerTests.test_unknown_is_not_pass) ... ok
+test_version_and_elf (test_analyzer.AnalyzerTests.test_version_and_elf) ... ok
+test_equal_length_and_capacity (test_model.BoundaryModelTests.test_equal_length_and_capacity) ... ok
+test_invalid_indices_and_kind (test_model.BoundaryModelTests.test_invalid_indices_and_kind) ... ok
+test_invalid_model_state (test_model.BoundaryModelTests.test_invalid_model_state) ... ok
+test_spare_capacity_is_still_logically_invalid (test_model.BoundaryModelTests.test_spare_capacity_is_still_logically_invalid) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.004s
+
+OK

@@ -1,0 +1,23 @@
+Failed to open startup resource '/tmp/natives_blob.bin'.
+Failed to open startup resource '/tmp/snapshot_blob.bin'.
+
+
+#
+# Fatal error in , line 0
+# Failed to deserialize the V8 snapshot blob. This can mean that the snapshot blob file is corrupted or missing.
+#
+#
+#
+#FailureMessage Object: 0x7ffd054fe4b0
+==== C stack trace ===============================
+
+    /tmp/oob-v8-d8-no-blobs(+0xc13013) [0x55b704e79013]
+    /tmp/oob-v8-d8-no-blobs(+0xc125db) [0x55b704e785db]
+    /tmp/oob-v8-d8-no-blobs(+0xc0dc88) [0x55b704e73c88]
+    /tmp/oob-v8-d8-no-blobs(+0x2d1518) [0x55b704537518]
+    /tmp/oob-v8-d8-no-blobs(+0x2d156f) [0x55b70453756f]
+    /tmp/oob-v8-d8-no-blobs(+0x2a44e7) [0x55b70450a4e7]
+    /lib64/libc.so.6(+0x3681) [0x7f656df5e681]
+    /lib64/libc.so.6(__libc_start_main+0x88) [0x7f656df5e798]
+    /tmp/oob-v8-d8-no-blobs(_start+0x2a) [0x55b7044f902a]
+Received signal 4 ILL_ILLOPN 55b704e76792
