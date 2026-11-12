@@ -1,7 +1,0 @@
-# V8 Invariant Analyzer
-
-`analyzer.py` usa apenas biblioteca padrão Python. Recebe diff, script de build, ELF, cabeçalho de versão, fonte histórica e dois casos comparativos. Produz JSON determinístico, com SHA-256 de cada input. Cada achado inclui `property`, `source`, `method`, `expected`, `observed`, `evidence`, `status` e `conclusion`. O campo `changed_paths` enumera os quatro arquivos tocados pelo diff.
-
-Os testes textuais procuram: acesso `get_scalar`/`set`, guarda de capacidade anterior, verificação de `JSArray` anterior ao cast e validação de Elements Kind anterior ao cast. A análise dos nove pontos estruturais usa padrões no código do commit. Arquivo ausente ou operação não reconhecida gera `UNKNOWN`; presença textual de guarda gera `PASS_STATIC`. Esse status não prova dominância de fluxo de controle, compilação, nem segurança em runtime. `FAIL` significa que a guarda não apareceu no fluxo textual analisado; um parser incompleto pode deixar de reconhecer uma guarda semanticamente equivalente. O resultado deve ser revisado junto ao código e às linhas de evidência.
-
-O relatório principal está em `evidence/logs/invariant-report.json`. As propostas analisadas estão em `source-analysis/` e não representam binários corrigidos. A identificação de arquitetura vem do cabeçalho ELF (`e_machine`); versão e commit vêm respectivamente de `v8-version.h` e `build.sh`, portanto são atribuídos a essas fontes e não ao binário isolado.
